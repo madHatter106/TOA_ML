@@ -50,3 +50,19 @@ def PlotPCARes(pca_machine, threshold=0.85, alpha=1,
             _, ax = pl.subplots(figsize=(20, 5))
         heatmap(corr_w_pca, cmap=cmo.balance, annot=True, vmin=-1, vmax=1,
                 ax=ax, cbar_ax=cbax)
+
+        
+def PlotCrossCorr(pca_data_, df):
+    pc_num=6
+    df_pca = pd.DataFrame(pca_data_[:,:pc_num],
+                          columns=['PC%d' %(i+1) for i in range(pc_num)],
+                          index=df.index)
+    dfrrs_w_pca = pd.merge(df_pca, df, 'outer',
+                            left_index=True,
+                            right_index=True)
+
+    corr_w_pca = dfrrs_w_pca.corr().T
+    corr_w_pca.drop(df_pca.columns, axis=0, inplace=True)
+    corr_w_pca.drop(df.columns, axis=1, inplace=True)
+    _, ax = pl.subplots(figsize=(20, 5))
+    heatmap(corr_w_pca, cmap=cmo.balance, annot=True, vmin=-1, vmax=1, ax=ax);
