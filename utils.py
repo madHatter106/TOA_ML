@@ -66,3 +66,33 @@ def PlotCrossCorr(pca_data_, df):
     corr_w_pca.drop(df.columns, axis=1, inplace=True)
     _, ax = pl.subplots(figsize=(20, 5))
     heatmap(corr_w_pca, cmap=cmo.balance, annot=True, vmin=-1, vmax=1, ax=ax);
+    
+    
+
+def FitPlotter(x, y, fit_fn=None, transform=None, noise=None):
+    line_kwargs = {'color': 'blue'}
+    dot_kwargs = {'alpha': 0.5}
+    if fit_fn:
+        if transform is None:
+            transform = lambda j: j
+        x_data = np.atleast_2d(np.linspace(x.min(), x.max(), num=500)).T
+        y_fit = fit_fn(transform(x_data))
+        if y_fit.ndim == 2 and y_fit.shape[1] > 1:
+            n_lines = y_fit.shape[1]
+            if n_lines > 100:
+                indices = np.linspace(0, n_lines - 1, num=100, dtype=int)
+                y_fit = y_fit[:, indices]
+                n_lines = len(indices)
+            line_kwargs['alpha'] = 0.3
+            line_kwargs['linewidth'] = 2
+            x_data = np.repeat(np.atleast_2d(x_data), n_lines, axis=1)
+        pl.plot(x_data, y_fit, '-', **line_kwargs)
+        if noise is not None:
+            noise = noise[indices]
+            noise_kwargs = line_kwargs.copy()
+            noise_kwargs['color'] = 'steelblue'
+            noise_kwargs['linewidth'] = line_kwargs['linewidth'] * 0.5
+            for const in (-2, -1, 1, 2):
+                noise_kwargs['alpha'] = 0.5 * line_kwargs['alpha'] / abs(const)
+                pl.plot(x_data, y_fit + const * noise, '-', **noise_kwargs)
+    plt.plot(x, y, 'ro', **dot_kwargs)
