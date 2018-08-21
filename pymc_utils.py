@@ -1,3 +1,8 @@
+import pymc3 as pm
+import matplotlib.pyplot as pl
+import numpy as np
+
+
 class PyMCModel:
     def __init__(self, model, X, y, model_name='None'):
         self.model = model(X, y)
