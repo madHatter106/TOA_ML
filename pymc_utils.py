@@ -1,6 +1,7 @@
 import pymc3 as pm
 import matplotlib.pyplot as pl
 import numpy as np
+from sklearn.metrics import r2_score, mean_squared_error
 
 
 class PyMCModel:
@@ -37,7 +38,7 @@ class PyMCModel:
         ax.grid(axis='y')
         return g
     
-    def plot_model_fits(self, y_obs, y_pred=None, title=None, ax=None):
+    def plot_model_fits(self, y_obs, y_pred=None, title=None, ax=None, range_=None):
         if y_pred is None:
             y_pred = self.trace_.get_values('mu')
         y_pred_mean = np.mean(y_pred, axis=0)
@@ -56,8 +57,13 @@ class PyMCModel:
         ax.set_xlabel('modeled')
         ax.set_ylabel('observed')
         ax.scatter(y_pred_mean, y_obs, color='k', alpha=0.5,
-                     label='$log_{10}(chl)$, $r^2=%.2f$, rmse=%.2f' %(r2, rmse));
-        ax.plot([-1.5, 1.5], [-1.5, 1.5], 'k--', label='1:1')
+                     label='$r^2=%.2f$, rmse=%.2f' %(r2, rmse));
+        if range_ is None:
+            axmin = min(y_pred_mean.min(), y_obs.min())
+            axmax = max(y_pred_mean.max(), y_obs.max())
+        else:
+            axmin, axmax = range_
+        ax.plot([axmin, axmax], [axmin, axmax], 'k--', label='1:1')
         ax.axis('equal')
         ax.legend(loc='best')
         f = pl.gcf()
@@ -77,7 +83,7 @@ class PyMCModel:
         if ax is None:
             _, ax = pl.subplots(figsize=(12, 8),)
         ax.set_title(title)
-        ax.plot(xi, y.values[iy], marker='.', ls='',
+        ax.plot(xi, y_obs[iy], marker='.', ls='',
                 markeredgecolor='darkblue', markersize=13,
                 label='observed')
         ax.plot(xi, y_pred_mean[iy], marker='o', color='indigo',
