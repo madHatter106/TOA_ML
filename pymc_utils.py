@@ -82,3 +82,99 @@ class PyMCModel:
                         label=f'{ci*100}%CI on pred.' );
         ax.legend(loc='best')
         return ax
+
+    
+def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False, **kwargs):
+    """See Piironen & Vehtari, 2017 (DOI: 10.1214/17-EJS1337SI)"""
+    if tau_0 is None:
+        M = X.shape[1]
+        m0 = M/2
+        N = X.shape[0]
+        tau_0 = m0 / ((M - m0) * np.sqrt(N))
+    if regularized:
+        slab_scale = kwargs.pop('slab_scale', 3)
+        slab_scale_sq = slab_scale ** 2
+        slab_df = kwargs.pop('slab_df', 8)
+        half_slab_df = slab_df / 2
+        with pm.Model() as mhsr:
+            tau = pm.HalfCauchy('tau', tau_0)
+            c_sq = pm.InverseGamma('c_sq', alpha=half_slab_df,
+                                   beta=half_slab_df * slab_scale_sq)
+            lamb_m = pm.HalfCauchy('lambda_m', beta=1)
+            lamb_m_bar = tt.sqrt(c_sq) * lamb_m / (tt.sqrt(c_sq + 
+                                                           tt.pow(tau, 2) *
+                                                           tt.pow(lamb_m, 2)
+                                                          )
+                                                  )
+            w = pm.Normal('w', mu=0, sd=tau*lamb_m_bar, shape=X.shape[1])
+            mu_ = pm.Deterministic('mu', tt.dot(X, w))
+            sig = pm.HalfCauchy('sigma', beta=10)
+            y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
+        return mhsr
+    else:
+        with pm.Model() as mhs:
+            tau = pm.HalfCauchy('tau', tau_0)
+            lamb_m = pm.HalfCauchy('lambda_m', beta=1)
+            w = pm.Normal('w', mu=0, sd = tau*lamb_m, shape=X.shape[1])
+            mu_ = pm.Deterministic('mu', tt.dot(X, w))
+            sig = pm.HalfCauchy('sigma', beta=10)
+            y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
+        return mhs
+
+    
+def lasso_regression(X, y_obs, ylabel='y'):
+    num_obs, num_feats = X.shape
+    with pm.Model() as mlasso:
+        sd_beta = pm.HalfCauchy('sd_beta', beta=2.5)
+        sig = pm.HalfCauchy('sigma', beta=2.5)
+        alpha = pm.Laplace('alpha', mu=0, b=sd_beta)
+        w = pm.Laplace('w', mu=0, b=sd_beta, shape=num_feats)
+        mu_ = pm.Deterministic('mu', alpha + tt.dot(X, w))
+        y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
+    return mlasso
+
+
+def lasso_regr_impute_y(X, y_obs, ylabel='y'):
+    num_obs, num_feats = X.shape
+    with pm.Model() as mlass_y_na:
+        sd_beta = pm.HalfCauchy('sd_beta', beta=2.5)
+        sig = pm.HalfCauchy('sigma', beta=2.5)
+        alpha = pm.Laplace('alpha', mu=0, b=sd_beta)
+        w = pm.Laplace('w', mu=0, b=sd_beta, shape=num_feats)
+        mu_ = pm.Deterministic('mu', alpha + tt.dot(X, w))
+        mu_y_obs = pm.Normal('mu_y_obs', 0.5, 1)
+        sigma_y_obs = pm.HalfCauchy('sigma_y_obs', 1)
+        y_obs_ = pm.Normal('y_obs', mu_y_obs, sigma_y_obs, observed=y_obs.squeeze())
+        y = pm.Normal('y', mu=y_obs_, sd=sig)
+    return mlass_y_na
+
+
+def hier_lasso_regr(X, y_obs, add_bias=True, ylabel='y'):
+    num_obs, num_feats = X.shape
+    with pm.Model() as mlasso:
+        hyp_beta = pm.HalfCauchy('hyp_beta', beta=2.5)
+        hyp_mu = pm.HalfCauchy('hyp_mu', mu=0, beta=2.5)
+        sig = pm.HalfCauchy('sigma', beta=2.5)
+        alpha = pm.Laplace('alpha', mu=hyp_mu, b=hyp_beta)
+        w = pm.Laplace('w', mu=hyp_mu, b=hyp_beta, shape=num_feats)
+        mu_ = pm.Deterministic('mu', alpha + tt.dot(X, w))
+        y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
+    return mlasso
+
+
+def subset_significant_feature(trace, labels_list, beg_feat, alpha=0.05, vars_=None):
+    if vars_ is None:
+        vars_ = ['sd_beta', 'sigma', 'alpha', 'w']
+    dsum = pm.summary(trace, varnames=vars_, alpha=alpha)
+    lbls_list = ['w[%s]' %lbl for lbl in labels_list]
+    dsum.index = vars_[:-1] + lbls_list 
+    hpd_lo, hpd_hi = 100 * (alpha / 2), 100 * (1 - alpha / 2)
+    if str(hpd_lo).split('.')[1] == '0':
+        hpd_lo = int(hpd_lo)
+    if str(hpd_hi).split('.')[1] == '0':
+        hpd_hi = int(hpd_hi)
+    dsum_subset = dsum[(((dsum[f'hpd_{hpd_lo}']<0)&(dsum[f'hpd_{hpd_hi}']<0))|
+                    ((dsum[f'hpd_{hpd_lo}']>0) & (dsum[f'hpd_{hpd_hi}']>0))
+                   )]
+    pattern1 = r'w\s*\[([a-z_\sA-Z0-9]+)\]'
+    return list(dsum_subset.index.str.extract(pattern1).dropna().values.flatten())
