@@ -1,12 +1,12 @@
 import pymc3 as pm
 import matplotlib.pyplot as pl
 import numpy as np
-from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
 
 class PyMCModel:
-    def __init__(self, model, X, y, model_name='None'):
-        self.model = model(X, y)
+    def __init__(self, model, X, y, model_name='None', **model_kws):
+        self.model = model(X, y, **model_kws)
         self.model.name = model_name
         
     def fit(self, n_samples=2000):
@@ -25,7 +25,7 @@ class PyMCModel:
         ws = self.trace_['w'].T
         if len(w_index)>0:
             ws = ws[w_index]
-        return (X.dot(ws) + self.trace_['alpha']).T
+        return (X.dot(ws) + self.trace_['bias']).T
     
     def evaluate_fit(self, show_feats):
         return pm.traceplot(self.trace_, varnames=show_feats)
@@ -38,7 +38,9 @@ class PyMCModel:
         ax.grid(axis='y')
         return g
     
-    def plot_model_fits(self, y_obs, y_pred=None, title=None, ax=None, range_=None):
+    def plot_model_fits(self, y_obs, y_pred=None, title=None, ax=None, range_=None,
+                       loss_metric='rmse'):
+        loss_metric_val=-1
         if y_pred is None:
             y_pred = self.trace_.get_values('mu')
         y_pred_mean = np.mean(y_pred, axis=0)
@@ -50,14 +52,20 @@ class PyMCModel:
             y_obs = np.ma.array(data=y_obs, mask=mask).compressed()
         finally:    
             r2 = r2_score(y_obs, y_pred_mean)
-            rmse = np.sqrt(mean_squared_error(y_obs, y_pred_mean))
+            if loss_metric == 'rmse':
+                loss_metric_val = np.sqrt(mean_squared_error(y_obs, y_pred_mean))
+            elif loss_metric == 'mse':
+                loss_metric_val = mean_squared_error(y_obs, y_pred_mean)
+            elif loss_metric == 'mae':
+                loss_metric_val = mean_absolute_error(y_obs, y_pred_mean)
+            
         if ax is None:
             _, ax = pl.subplots(figsize=(10, 10),)
         ax.set_title(title)
         ax.set_xlabel('modeled')
         ax.set_ylabel('observed')
         ax.scatter(y_pred_mean, y_obs, color='k', alpha=0.5,
-                     label='$r^2=%.2f$, rmse=%.2f' %(r2, rmse));
+                     label='$r^2=%.2f$, %s=%.2f' %(r2, loss_metric, loss_metric_val));
         if range_ is None:
             axmin = min(y_pred_mean.min(), y_obs.min())
             axmax = max(y_pred_mean.max(), y_obs.max())
@@ -95,7 +103,7 @@ class PyMCModel:
         return ax
 
     
-def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False, **kwargs):
+def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False):
     """See Piironen & Vehtari, 2017 (DOI: 10.1214/17-EJS1337SI)"""
     if tau_0 is None:
         M = X.shape[1]
@@ -138,9 +146,9 @@ def lasso_regression(X, y_obs, ylabel='y'):
     with pm.Model() as mlasso:
         sd_beta = pm.HalfCauchy('sd_beta', beta=2.5)
         sig = pm.HalfCauchy('sigma', beta=2.5)
-        alpha = pm.Laplace('alpha', mu=0, b=sd_beta)
+        bias = pm.Laplace('bias', mu=0, b=sd_beta)
         w = pm.Laplace('w', mu=0, b=sd_beta, shape=num_feats)
-        mu_ = pm.Deterministic('mu', alpha + tt.dot(X, w))
+        mu_ = pm.Deterministic('mu', bias + tt.dot(X, w))
         y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
     return mlasso
 
@@ -150,9 +158,9 @@ def lasso_regr_impute_y(X, y_obs, ylabel='y'):
     with pm.Model() as mlass_y_na:
         sd_beta = pm.HalfCauchy('sd_beta', beta=2.5)
         sig = pm.HalfCauchy('sigma', beta=2.5)
-        alpha = pm.Laplace('alpha', mu=0, b=sd_beta)
+        bias = pm.Laplace('bias', mu=0, b=sd_beta)
         w = pm.Laplace('w', mu=0, b=sd_beta, shape=num_feats)
-        mu_ = pm.Deterministic('mu', alpha + tt.dot(X, w))
+        mu_ = pm.Deterministic('mu', bias + tt.dot(X, w))
         mu_y_obs = pm.Normal('mu_y_obs', 0.5, 1)
         sigma_y_obs = pm.HalfCauchy('sigma_y_obs', 1)
         y_obs_ = pm.Normal('y_obs', mu_y_obs, sigma_y_obs, observed=y_obs.squeeze())
@@ -166,16 +174,16 @@ def hier_lasso_regr(X, y_obs, add_bias=True, ylabel='y'):
         hyp_beta = pm.HalfCauchy('hyp_beta', beta=2.5)
         hyp_mu = pm.HalfCauchy('hyp_mu', mu=0, beta=2.5)
         sig = pm.HalfCauchy('sigma', beta=2.5)
-        alpha = pm.Laplace('alpha', mu=hyp_mu, b=hyp_beta)
+        bias = pm.Laplace('bias', mu=hyp_mu, b=hyp_beta)
         w = pm.Laplace('w', mu=hyp_mu, b=hyp_beta, shape=num_feats)
-        mu_ = pm.Deterministic('mu', alpha + tt.dot(X, w))
+        mu_ = pm.Deterministic('mu', bias + tt.dot(X, w))
         y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
     return mlasso
 
 
 def subset_significant_feature(trace, labels_list, beg_feat, alpha=0.05, vars_=None):
     if vars_ is None:
-        vars_ = ['sd_beta', 'sigma', 'alpha', 'w']
+        vars_ = ['sd_beta', 'sigma', 'bias', 'w']
     dsum = pm.summary(trace, varnames=vars_, alpha=alpha)
     lbls_list = ['w[%s]' %lbl for lbl in labels_list]
     dsum.index = vars_[:-1] + lbls_list 
