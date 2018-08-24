@@ -18,8 +18,12 @@ class PyMCModel:
             approx_fit = pm.fit(n=n_iter, method=inference)
             self.trace_ = approx_fit.sample(draws=n_samples)
     
-    def show_model(self):
-        return pm.model_to_graphviz(self.model)
+    def show_model(self, save=False, view=True, cleanup=True):
+        model_graph = pm.model_to_graphviz(self.model)
+        if save:
+            model_graph.render(save, view=view, cleanup=cleanup)
+        if view:
+            return model_graph
     
     def predict(self, X, w_index=[]):
         ws = self.trace_['w'].T
