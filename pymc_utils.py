@@ -43,10 +43,11 @@ class PyMCModel:
         return g
     
     def plot_model_fits(self, y_obs, y_pred=None, title=None, ax=None, range_=None,
-                       loss_metric='rmse'):
+                       loss_metric='rmse', **kwargs):
         loss_metric_val=-1
+        likelihood_var_name = kwargs.pop('likelihood_var_name', 'mu')
         if y_pred is None:
-            y_pred = self.trace_.get_values('mu')
+            y_pred = self.trace_.get_values(likelihood_var_name)
         y_pred_mean = np.mean(y_pred, axis=0)
         try:
             rmse = np.sqrt(mean_squared_error(y_obs, y_pred_mean))
