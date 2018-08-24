@@ -18,3 +18,5 @@ __pycache__/
 figJar/
 
 \.DS_Store
+
+*.pdf
