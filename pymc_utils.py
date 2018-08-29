@@ -13,10 +13,10 @@ class PyMCModel:
         with self.model:
             self.trace_ = pm.sample(n_samples)
     
-    def fit_ADVI(self, n_samples=2000, n_iter=100000, inference='advi'):
+    def fit_ADVI(self, n_samples=2000, n_iter=100000, inference='advi', **fit_kws):
         with self.model:
-            approx_fit = pm.fit(n=n_iter, method=inference)
-            self.trace_ = approx_fit.sample(draws=n_samples)
+            self.approx_fit = pm.fit(n=n_iter, method=inference, **fit_kws)
+            self.trace_ = self.approx_fit.sample(draws=n_samples)
     
     def show_model(self, save=False, view=True, cleanup=True):
         model_graph = pm.model_to_graphviz(self.model)
@@ -25,11 +25,10 @@ class PyMCModel:
         if view:
             return model_graph
     
-    def predict(self, X, w_index=[]):
-        ws = self.trace_['w'].T
-        if len(w_index)>0:
-            ws = ws[w_index]
-        return (X.dot(ws) + self.trace_['bias']).T
+    def predict(self, X, likelihood_name='y', **ppc_kws):
+        ppc_ = pm.sample_ppc(self.trace_, model=self.model,
+                             **ppc_kws)[likelihood_name]
+        return ppc_
     
     def evaluate_fit(self, show_feats):
         return pm.traceplot(self.trace_, varnames=show_feats)
@@ -38,7 +37,10 @@ class PyMCModel:
         g = pm.forestplot(self.trace_, varnames=show_feats,
                              ylabels=feat_labels)
         f = pl.gcf()
-        ax = f.get_axes()[1]
+        try:
+            ax = f.get_axes()[1]
+        except IndexError:
+            ax = f.get_axes()[0]
         ax.grid(axis='y')
         return g
     
