@@ -1,4 +1,5 @@
 import pymc3 as pm
+import theano.tensor as tt
 import matplotlib.pyplot as pl
 import numpy as np
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
@@ -69,7 +70,7 @@ class PyMCModel:
         if ax is None:
             _, ax = pl.subplots(figsize=(10, 10),)
         ax.set_title(title)
-        ax.set_xlabel('modeled')
+        ax.set_xlabel('model output mean')
         ax.set_ylabel('observed')
         ax.scatter(y_pred_mean, y_obs, color='k', alpha=0.5,
                      label='$r^2=%.2f$, %s=%.2f' %(r2, loss_metric, loss_metric_val));
@@ -83,6 +84,30 @@ class PyMCModel:
         ax.legend(loc='best')
         f = pl.gcf()
         f.tight_layout()
+        return ax
+    
+    def plot_model_ppc_stats(self, ppc, y_obs, alpha_level1=0.05,
+                             alpha_level2=0.5, ax=None):
+        if ax is None:
+            _, ax = pl.subplots()
+        iy = np.argsort(y_obs)
+        ix = np.arange(iy.size)
+        ppc_mean = ppc.mean(axis=0)
+        ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=50,
+                   color='steelblue')
+        ax.scatter(ix, ppc_mean[iy], label='prediction mean', edgecolor='k', s=50,
+                   color='red')
+                 
+        if alpha_level2:
+            lik_hpd_2 = pm.hpd(ppc, alpha=alpha_level2)
+            ax.fill_between(ix, y1=lik_hpd_2[iy, 0], y2=lik_hpd_2[iy, 1], alpha=0.5,
+                            color='k',
+                            label=f'prediction {1-alpha_level2:.2f}%CI',)
+        if alpha_level1:
+            lik_hpd_1 = pm.hpd(ppc, alpha=alpha_level1)
+            ax.fill_between(ix, y1=lik_hpd_1[iy, 0], y2=lik_hpd_1[iy, 1], alpha=0.5,
+                            color='k', label=f'prediction {1-alpha_level1:.2f}%CI',)
+        ax.legend(loc='best')
         return ax
     
     def plot_model_fits2(self, y_obs, y_pred=None, title=None, ax=None, ci=0.95):
@@ -149,7 +174,7 @@ def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False):
 
     
 def lasso_regression(X, y_obs, ylabel='y'):
-    num_obs, num_feats = X.shape
+    num_obs, num_feats = X.eval().shape
     with pm.Model() as mlasso:
         sd_beta = pm.HalfCauchy('sd_beta', beta=2.5)
         sig = pm.HalfCauchy('sigma', beta=2.5)
@@ -161,7 +186,7 @@ def lasso_regression(X, y_obs, ylabel='y'):
 
 
 def lasso_regr_impute_y(X, y_obs, ylabel='y'):
-    num_obs, num_feats = X.shape
+    num_obs, num_feats = X.eval().shape
     with pm.Model() as mlass_y_na:
         sd_beta = pm.HalfCauchy('sd_beta', beta=2.5)
         sig = pm.HalfCauchy('sigma', beta=2.5)
