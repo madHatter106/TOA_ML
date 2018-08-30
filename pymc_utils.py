@@ -213,7 +213,7 @@ def hier_lasso_regr(X, y_obs, add_bias=True, ylabel='y'):
     return mlasso
 
 
-def subset_significant_feature(trace, labels_list, beg_feat, alpha=0.05, vars_=None):
+def subset_significant_feature(trace, labels_list, alpha=0.05, vars_=None):
     if vars_ is None:
         vars_ = ['sd_beta', 'sigma', 'bias', 'w']
     dsum = pm.summary(trace, varnames=vars_, alpha=alpha)
