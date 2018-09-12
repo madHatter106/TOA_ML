@@ -26,7 +26,7 @@ class PyMCModel:
         if view:
             return model_graph
     
-    def predict(self, X, likelihood_name='y', **ppc_kws):
+    def predict(self, likelihood_name='likelihood', **ppc_kws):
         ppc_ = pm.sample_ppc(self.trace_, model=self.model,
                              **ppc_kws)[likelihood_name]
         return ppc_
@@ -169,7 +169,7 @@ def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False):
             w = pm.Normal('w', mu=0, sd = tau*lamb_m, shape=X.shape[1])
             mu_ = pm.Deterministic('mu', tt.dot(X, w))
             sig = pm.HalfCauchy('sigma', beta=10)
-            y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
+            y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=y_obs.squeeze())
         return mhs
 
     
@@ -181,7 +181,7 @@ def lasso_regression(X, y_obs, ylabel='y'):
         bias = pm.Laplace('bias', mu=0, b=sd_beta)
         w = pm.Laplace('w', mu=0, b=sd_beta, shape=num_feats)
         mu_ = pm.Deterministic('mu', bias + tt.dot(X, w))
-        y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
+        y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=y_obs.squeeze())
     return mlasso
 
 
@@ -196,7 +196,7 @@ def lasso_regr_impute_y(X, y_obs, ylabel='y'):
         mu_y_obs = pm.Normal('mu_y_obs', 0.5, 1)
         sigma_y_obs = pm.HalfCauchy('sigma_y_obs', 1)
         y_obs_ = pm.Normal('y_obs', mu_y_obs, sigma_y_obs, observed=y_obs.squeeze())
-        y = pm.Normal('y', mu=y_obs_, sd=sig)
+        y = pm.Normal(ylabel, mu=y_obs_, sd=sig)
     return mlass_y_na
 
 
@@ -209,8 +209,28 @@ def hier_lasso_regr(X, y_obs, add_bias=True, ylabel='y'):
         bias = pm.Laplace('bias', mu=hyp_mu, b=hyp_beta)
         w = pm.Laplace('w', mu=hyp_mu, b=hyp_beta, shape=num_feats)
         mu_ = pm.Deterministic('mu', bias + tt.dot(X, w))
-        y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
+        y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=y_obs.squeeze())
     return mlasso
+
+
+def plot_fits_with_unc(y_obs, ppc_, ax=None):
+    iy  = np.argsort(y_obs)
+    ix = np.arange(iy.size)
+    lik_mean =ppc_.mean(axis=0)
+    lik_hpd = pm.hpd(ppc_)
+    lik_hpd_05 = pm.hpd(ppc_, alpha=0.5)
+    if ax is None:
+        _, ax = pl.subplots(figsize=(12, 8))
+        ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=50,
+                   color='steelblue');
+        ax.scatter(ix, lik_mean[iy], label='modeled', edgecolor='k', s=50, color='m')
+
+        ax.fill_between(ix, y1=lik_hpd_05[iy, 0], y2=lik_hpd_05[iy, 1], alpha=0.5, color='k',
+                       label='model output 50%CI');
+        ax.fill_between(ix, y1=lik_hpd[iy, 0], y2=lik_hpd[iy, 1], alpha=0.5, color='k',
+                       label='model output 95%CI');
+        ax.legend(loc='upper left');
+    return ax
 
 
 def subset_significant_feature(trace, labels_list, alpha=0.05, vars_=None):
