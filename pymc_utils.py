@@ -249,3 +249,13 @@ def subset_significant_feature(trace, labels_list, alpha=0.05, vars_=None):
                    )]
     pattern1 = r'w\s*\[([a-z_\sA-Z0-9]+)\]'
     return list(dsum_subset.index.str.extract(pattern1).dropna().values.flatten())
+
+
+def plot_pairwise_corr(df_, ax=None):
+    if ax is None:
+        _, ax = pl.subplots(figsize=(12, 10))
+    heatmap(df_.corr().iloc[1:,:-1],vmin=-1, vmax=1,
+            mask=np.triu(np.ones([df_.shape[1]-1] * 2),k=1),
+            ax=ax, annot=True, annot_kws={'fontsize': 10})
+    ax.set_facecolor('k')
+    return ax
