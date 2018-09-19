@@ -10,9 +10,9 @@ class PyMCModel:
         self.model = model(X, y, **model_kws)
         self.model.name = model_name
         
-    def fit(self, n_samples=2000):
+    def fit(self, n_samples=2000, **sample_kws):
         with self.model:
-            self.trace_ = pm.sample(n_samples)
+            self.trace_ = pm.sample(n_samples, **sample_kws)
     
     def fit_ADVI(self, n_samples=2000, n_iter=100000, inference='advi', **fit_kws):
         with self.model:
