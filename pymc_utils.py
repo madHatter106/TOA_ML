@@ -135,42 +135,44 @@ class PyMCModel:
         return ax
 
     
-def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False):
+def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False, **kwargs):
     """See Piironen & Vehtari, 2017 (DOI: 10.1214/17-EJS1337SI)"""
+    X_ = pm.floatX(X)
+    Y_ = pm.floatX(y_obs)
+    n_features = X_.eval().shape[1]
     if tau_0 is None:
-        M = X.shape[1]
-        m0 = M/2
-        N = X.shape[0]
-        tau_0 = m0 / ((M - m0) * np.sqrt(N))
+        m0 = n_features/2
+        n_obs = X_.eval().shape[0]
+        tau_0 = m0 / ((n_features - m0) * np.sqrt(n_obs))
+    with pm.Model() as model:
+        tau = pm.HalfCauchy('tau', tau_0)
+        sd_bias = pm.HalfCauchy('sd_bias', beta=2.5)
+        lamb_m = pm.HalfCauchy('lambda_m', beta=1)
+        
     if regularized:
         slab_scale = kwargs.pop('slab_scale', 3)
         slab_scale_sq = slab_scale ** 2
         slab_df = kwargs.pop('slab_df', 8)
         half_slab_df = slab_df / 2
-        with pm.Model() as mhsr:
-            tau = pm.HalfCauchy('tau', tau_0)
+        with model:
             c_sq = pm.InverseGamma('c_sq', alpha=half_slab_df,
                                    beta=half_slab_df * slab_scale_sq)
-            lamb_m = pm.HalfCauchy('lambda_m', beta=1)
             lamb_m_bar = tt.sqrt(c_sq) * lamb_m / (tt.sqrt(c_sq + 
                                                            tt.pow(tau, 2) *
                                                            tt.pow(lamb_m, 2)
                                                           )
                                                   )
-            w = pm.Normal('w', mu=0, sd=tau*lamb_m_bar, shape=X.shape[1])
-            mu_ = pm.Deterministic('mu', tt.dot(X, w))
-            sig = pm.HalfCauchy('sigma', beta=10)
-            y = pm.Normal('y', mu=mu_, sd=sig, observed=y_obs.squeeze())
-        return mhsr
+            w = pm.Normal('w', mu=0, sd=tau*lamb_m_bar, shape=n_features)
     else:
-        with pm.Model() as mhs:
-            tau = pm.HalfCauchy('tau', tau_0)
-            lamb_m = pm.HalfCauchy('lambda_m', beta=1)
-            w = pm.Normal('w', mu=0, sd = tau*lamb_m, shape=X.shape[1])
-            mu_ = pm.Deterministic('mu', tt.dot(X, w))
-            sig = pm.HalfCauchy('sigma', beta=10)
-            y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=y_obs.squeeze())
-        return mhs
+        with model:
+            w = pm.Normal('w', mu=0, sd=tau*lamb_m, shape=n_features)
+            
+    with model:
+            bias = pm.Laplace('bias', mu=0, b=sd_bias)
+            mu_ = pm.Deterministic('mu', tt.dot(X_, w) + bias)
+            sig = pm.HalfCauchy('sigma', beta=5)
+            y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=Y_)
+    return model
 
     
 def lasso_regression(X, y_obs, ylabel='y'):
@@ -201,16 +203,22 @@ def lasso_regr_impute_y(X, y_obs, ylabel='y'):
 
 
 def hier_lasso_regr(X, y_obs, add_bias=True, ylabel='y'):
-    num_obs, num_feats = X.shape
+    X_ = pm.floatX(X)
+    Y_ = pm.floatX(y_obs)
+    n_features = X_.eval().shape[1]
     with pm.Model() as mlasso:
         hyp_beta = pm.HalfCauchy('hyp_beta', beta=2.5)
         hyp_mu = pm.HalfCauchy('hyp_mu', mu=0, beta=2.5)
         sig = pm.HalfCauchy('sigma', beta=2.5)
         bias = pm.Laplace('bias', mu=hyp_mu, b=hyp_beta)
-        w = pm.Laplace('w', mu=hyp_mu, b=hyp_beta, shape=num_feats)
-        mu_ = pm.Deterministic('mu', bias + tt.dot(X, w))
-        y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=y_obs.squeeze())
+        w = pm.Laplace('w', mu=hyp_mu, b=hyp_beta, shape=n_features)
+        mu_ = pm.Deterministic('mu', bias + tt.dot(X_, w))
+        y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=Y_)
     return mlasso
+
+
+def partial_pooling_lasso(X, y_obs, ylabel='y'):
+    pass
 
 
 def plot_fits_with_unc(y_obs, ppc_, ax=None):
@@ -259,3 +267,46 @@ def plot_pairwise_corr(df_, ax=None):
             ax=ax, annot=True, annot_kws={'fontsize': 10})
     ax.set_facecolor('k')
     return ax
+
+
+def plot_fits_w_estimates(y_obs, ppc, ax=None, savename=False):
+    """ Plot Fits with Uncertainty Estimates"""
+    iy  = np.argsort(y_obs)
+    ix = np.arange(iy.size)
+    lik_mean =ppc.mean(axis=0)
+    lik_hpd = pm.hpd(ppc)
+    lik_hpd_05 = pm.hpd(ppc, alpha=0.5)
+    if ax is None:
+        _, ax = pl.subplots(figsize=(12, 8))
+    ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=100,
+               color='steelblue', marker='d', zorder=2);
+    ax.scatter(ix, lik_mean[iy], label='modeled', edgecolor='k', s=100, color='orange', zorder=3)
+
+    ax.fill_between(ix, y1=lik_hpd_05[iy, 0], y2=lik_hpd_05[iy, 1], color='gray', 
+                   label='model output 50%CI', zorder=1,linestyle='-', lw=2, edgecolor='k');
+    ax.fill_between(ix, y1=lik_hpd[iy, 0], y2=lik_hpd[iy, 1], color='k', alpha=0.75,
+                   label='model output 95%CI', zorder=0, );
+    ax.legend(loc='upper left');
+    if savename:
+        f = pl.gcf()
+        f.savefig('./figJar/bayesNet/%s.pdf' % savename, format='pdf')
+    return ax
+
+
+def evaluate_model(model,  y_train_, y_test_, ax1_title=None, ax2_title=None, ax3_title=None,):
+    """Makes a 3-way panel to evaluate model w/ training and testing"""
+    f = pl.figure(figsize=(15, 15))
+    ax1 = pl.subplot2grid((2, 2), (0, 0))
+    ax2 = pl.subplot2grid((2, 2), (0, 1))
+    ax3 = pl.subplot2grid((2, 2), (1, 0), colspan=2)
+    X_shared.set_value(X_s_train)
+    ppc_train_ = model.predict(likelihood_name='likelihood' )
+    model.plot_model_fits(y_train_, ppc_train_, loss_metric='mae',
+                          ax=ax1, title=ax1_title, );
+    X_shared.set_value(X_s_test)
+    ppc_test_ = model.predict()
+    model.plot_model_fits(y_test_, ppc_test_, loss_metric='mae',
+                          ax=ax2, title=ax2_title, );
+    plot_fits_w_estimates(y_test.log10_aphy411, ppc_test_411, ax=ax3)
+    ax3.set_title(ax3_title)
+    return f
