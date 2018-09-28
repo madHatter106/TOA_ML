@@ -5,6 +5,29 @@ import numpy as np
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
 
+class Ordered(pm.distributions.transforms.ElemwiseTransform):
+    name = "ordered"
+
+    def forward(self, x):
+        out = tt.zeros(x.shape)
+        out = tt.inc_subtensor(out[0], x[0])
+        out = tt.inc_subtensor(out[1:], tt.log(x[1:] - x[:-1]))
+        return out
+    
+    def forward_val(self, x, point=None):
+        x, = pm.distributions.distribution.draw_values([x], point=point)
+        return self.forward(x)
+
+    def backward(self, y):
+        out = tt.zeros(y.shape)
+        out = tt.inc_subtensor(out[0], y[0])
+        out = tt.inc_subtensor(out[1:], tt.exp(y[1:]))
+        return tt.cumsum(out)
+
+    def jacobian_det(self, y):
+        return tt.sum(y[1:])
+
+
 class PyMCModel:
     def __init__(self, model, X, y, model_name='None', **model_kws):
         self.model = model(X, y, **model_kws)
@@ -45,45 +68,6 @@ class PyMCModel:
         ax.grid(axis='y')
         return g
     
-    def plot_model_fits(self, y_obs, y_pred, title=None, ax=None, range_=None,
-                       loss_metric='rmse', **kwargs):
-        loss_metric_val=-1
-        likelihood_var_name = kwargs.pop('likelihood_var_name', 'mu')
-        
-        y_pred_mean = np.mean(y_pred, axis=0)
-        try:
-            rmse = np.sqrt(mean_squared_error(y_obs, y_pred_mean))
-        except ValueError:
-            mask = np.isnan(y_obs)
-            y_pred_mean = np.ma.array(data=y_pred_mean, mask=mask).compressed()
-            y_obs = np.ma.array(data=y_obs, mask=mask).compressed()
-        finally:    
-            r2 = r2_score(y_obs, y_pred_mean)
-            if loss_metric == 'rmse':
-                loss_metric_val = np.sqrt(mean_squared_error(y_obs, y_pred_mean))
-            elif loss_metric == 'mse':
-                loss_metric_val = mean_squared_error(y_obs, y_pred_mean)
-            elif loss_metric == 'mae':
-                loss_metric_val = mean_absolute_error(y_obs, y_pred_mean)
-            
-        if ax is None:
-            _, ax = pl.subplots(figsize=(10, 10),)
-        ax.set_title(title)
-        ax.set_xlabel('model output mean')
-        ax.set_ylabel('observed')
-        ax.scatter(y_pred_mean, y_obs, color='k', alpha=0.5,
-                     label='$r^2=%.2f$, %s=%.2f' %(r2, loss_metric, loss_metric_val));
-        if range_ is None:
-            axmin = min(y_pred_mean.min(), y_obs.min())
-            axmax = max(y_pred_mean.max(), y_obs.max())
-        else:
-            axmin, axmax = range_
-        ax.plot([axmin, axmax], [axmin, axmax], 'k--', label='1:1')
-        ax.axis('equal')
-        ax.legend(loc='best')
-        f = pl.gcf()
-        f.tight_layout()
-        return ax
     
     def plot_model_ppc_stats(self, ppc, y_obs, alpha_level1=0.05,
                              alpha_level2=0.5, ax=None):
