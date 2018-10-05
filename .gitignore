@@ -20,3 +20,7 @@ figJar/
 \.DS_Store
 
 *.pdf
+
+*.docx
+
+*.docx#
