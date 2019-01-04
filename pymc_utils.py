@@ -212,15 +212,15 @@ def plot_fits_with_unc(y_obs, ppc_, ax=None):
     lik_hpd_05 = pm.hpd(ppc_, alpha=0.5)
     if ax is None:
         _, ax = pl.subplots(figsize=(12, 8))
-        ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=50,
-                   color='steelblue');
-        ax.scatter(ix, lik_mean[iy], label='modeled', edgecolor='k', s=50, color='m')
+    ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=50,
+               color='steelblue');
+    ax.scatter(ix, lik_mean[iy], label='modeled', edgecolor='k', s=50, color='m')
 
-        ax.fill_between(ix, y1=lik_hpd_05[iy, 0], y2=lik_hpd_05[iy, 1], alpha=0.5, color='k',
-                       label='model output 50%CI');
-        ax.fill_between(ix, y1=lik_hpd[iy, 0], y2=lik_hpd[iy, 1], alpha=0.5, color='k',
-                       label='model output 95%CI');
-        ax.legend(loc='upper left');
+    ax.fill_between(ix, y1=lik_hpd_05[iy, 0], y2=lik_hpd_05[iy, 1], alpha=0.5, color='k',
+                   label='model output 50%CI');
+    ax.fill_between(ix, y1=lik_hpd[iy, 0], y2=lik_hpd[iy, 1], alpha=0.5, color='k',
+                   label='model output 95%CI');
+    ax.legend(loc='upper left');
     return ax
 
 
