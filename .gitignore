@@ -24,3 +24,5 @@ figJar/
 *.docx
 
 *.docx#
+
+*.gv
