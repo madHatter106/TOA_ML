@@ -204,26 +204,6 @@ def partial_pooling_lasso(X, y_obs, ylabel='y'):
     pass
 
 
-def plot_fits_with_unc(y_obs, ppc_, ax=None):
-    iy  = np.argsort(y_obs)
-    ix = np.arange(iy.size)
-    lik_mean =ppc_.mean(axis=0)
-    lik_hpd = pm.hpd(ppc_)
-    lik_hpd_05 = pm.hpd(ppc_, alpha=0.5)
-    if ax is None:
-        _, ax = pl.subplots(figsize=(12, 8))
-    ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=50,
-               color='steelblue');
-    ax.scatter(ix, lik_mean[iy], label='modeled', edgecolor='k', s=50, color='m')
-
-    ax.fill_between(ix, y1=lik_hpd_05[iy, 0], y2=lik_hpd_05[iy, 1], alpha=0.5, color='k',
-                   label='model output 50%CI');
-    ax.fill_between(ix, y1=lik_hpd[iy, 0], y2=lik_hpd[iy, 1], alpha=0.5, color='k',
-                   label='model output 95%CI');
-    ax.legend(loc='upper left');
-    return ax
-
-
 def subset_significant_feature(trace, labels_list, alpha=0.05, vars_=None):
     if vars_ is None:
         vars_ = ['sd_beta', 'sigma', 'bias', 'w']
@@ -241,73 +221,78 @@ def subset_significant_feature(trace, labels_list, alpha=0.05, vars_=None):
     pattern1 = r'w\s*\[([a-z_\sA-Z0-9]+)\]'
     return list(dsum_subset.index.str.extract(pattern1).dropna().values.flatten())
 
+def create_smry(trc, labels, vname=['w']):
+    ''' Conv fn: create trace summary for sorted forestplot '''
+    dfsm = pm.summary(trc, varnames=vname)
+    dfsm.rename(index={wi: lbl for wi, lbl in zip(dfsm.index, feature_labels)},
+                inplace=True)
+    #dfsm.sort_values('mean', ascending=True, inplace=True)
+    dfsm['ypos'] = np.linspace(1, 0, len(dfsm))
+    return dfsm
 
-def plot_pairwise_corr(df_, ax=None):
+
+def custom_forestplot(df, ax, replace_bathy=True, hpd_hi='97.5', hpd_lo='2.5'):
+    ax.scatter(x=df['mean'], y=df.ypos, edgecolor='k', facecolor='white', zorder=2)
+    ax.hlines(df.ypos, xmax=df['hpd_%s' % hpd_hi], xmin=df['hpd_%s' % hpd_lo],
+              color='k', zorder=1, linewidth=3)
+    ax.set_yticks(df.ypos)
+    ax.set_yticklabels(df.index.tolist())
+    ax.axvline(linestyle=':', color='k')
+    ax.grid(axis='y', zorder=0)
+
+    
+def plot_pairwise_map(df, ax=None, annot=False):
     if ax is None:
-        _, ax = pl.subplots(figsize=(12, 10))
-    heatmap(df_.corr().iloc[1:,:-1],vmin=-1, vmax=1,
-            mask=np.triu(np.ones([df_.shape[1]-1] * 2),k=1),
-            ax=ax, annot=True, annot_kws={'fontsize': 10})
+        _, ax = pl.subplots(figsize=(20, 20))
+    dfc = df.corr().iloc[1:, :-1]
+    heatmap(dfc, vmin=-1, vmax=1, cmap=cmo.balance_r, annot=annot, annot_kws={'fontsize': 6},
+            ax=ax, mask=np.triu(np.ones([dfc.shape[1]]*2), k=1), fmt='.1f',
+           linewidths=0.5, linecolor='black')
     ax.set_facecolor('k')
     return ax
 
 
-def plot_fits_w_estimates(y_obs, ppc, ax=None, savename=False):
+def plot_obs_against_ppc(y_obs, ppc, ax=None, plot_1_to_1=False,
+                         add_label=True, **scatter_kwds):
+    if ax is None:
+        _, ax = pl.subplots(figsize=(10, 10))
+    ppc_mean = ppc.mean(axis=0)
+    mae = mean_absolute_error(y_obs, ppc_mean)
+    r2 = r2_score(y_obs, ppc_mean)
+    if add_label:
+        scatter_lbl = scatter_kwds.pop('label', '')
+        scatter_lbl = fr'{scatter_lbl}; {r2:.2f}; {mae:.2f}'
+        ax.scatter(y_obs, ppc_mean, edgecolor='k', label=scatter_lbl, **scatter_kwds)
+    else:
+        ax.scatter(y_obs, ppc_mean, edgecolor='k', **scatter_kwds)
+    if plot_1_to_1:
+        min_ = min(ppc_mean.min(), y_obs.min())
+        max_ = max(ppc_mean.max(), y_obs.max())
+        ax.plot([min_, max_], [min_, max_], ls='--', color='k', label='1:1')
+    ax.legend(loc='upper left')
+    return ax
+
+
+def plot_fits_w_estimates(y_obs, ppc, ax=None, legend=False):
     """ Plot Fits with Uncertainty Estimates"""
     iy  = np.argsort(y_obs)
     ix = np.arange(iy.size)
-    lik_mean =ppc.mean(axis=0)
+    lik_mean = ppc.mean(axis=0)
     lik_hpd = pm.hpd(ppc)
     lik_hpd_05 = pm.hpd(ppc, alpha=0.5)
+    r2 = r2_score(y_obs, lik_mean)
+    mae = mean_absolute_error(y_obs, lik_mean)
     if ax is None:
         _, ax = pl.subplots(figsize=(12, 8))
-    ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=100,
-               color='steelblue', marker='d', zorder=2);
-    ax.scatter(ix, lik_mean[iy], label='modeled', edgecolor='k', s=100, color='orange', zorder=3)
+    ax.scatter(ix, y_obs.values[iy], label='observed', edgecolor='k', s=40,
+               color='w', marker='d', zorder=2);
+    ax.scatter(ix, lik_mean[iy], label='model mean -- $r^2$=%.2f -- mae=%.2f' %(r2, mae),
+               edgecolor='k', s=40, color='w', zorder=3)
 
     ax.fill_between(ix, y1=lik_hpd_05[iy, 0], y2=lik_hpd_05[iy, 1], color='gray', 
                    label='model output 50%CI', zorder=1,linestyle='-', lw=2, edgecolor='k');
     ax.fill_between(ix, y1=lik_hpd[iy, 0], y2=lik_hpd[iy, 1], color='k', alpha=0.75,
                    label='model output 95%CI', zorder=0, );
-    ax.legend(loc='upper left');
-    if savename:
-        f = pl.gcf()
-        f.savefig('./figJar/bayesNet/%s.pdf' % savename, format='pdf')
+    if legend:
+        ax.legend(loc='upper left');
     return ax
-
-
-def evaluate_model(model,  y_train_, y_test_, ax1_title=None, ax2_title=None, ax3_title=None,):
-    """Makes a 3-way panel to evaluate model w/ training and testing"""
-    f = pl.figure(figsize=(15, 15))
-    ax1 = pl.subplot2grid((2, 2), (0, 0))
-    ax2 = pl.subplot2grid((2, 2), (0, 1))
-    ax3 = pl.subplot2grid((2, 2), (1, 0), colspan=2)
-    X_shared.set_value(X_s_train)
-    ppc_train_ = model.predict(likelihood_name='likelihood' )
-    model.plot_model_fits(y_train_, ppc_train_, loss_metric='mae',
-                          ax=ax1, title=ax1_title, );
-    X_shared.set_value(X_s_test)
-    ppc_test_ = model.predict()
-    model.plot_model_fits(y_test_, ppc_test_, loss_metric='mae',
-                          ax=ax2, title=ax2_title, );
-    plot_fits_w_estimates(y_test.log10_aphy411, ppc_test_411, ax=ax3)
-    ax3.set_title(ax3_title)
-    return f
-
-def evaluate_model2(model,  y_train_, y_test_, ax1_title=None, ax2_title=None, ax3_title=None,):
-    """Makes a 3-way panel to evaluate model w/ training and testing"""
-    f = pl.figure(figsize=(15, 15))
-    ax1 = pl.subplot2grid((2, 2), (0, 0))
-    ax2 = pl.subplot2grid((2, 2), (0, 1))
-    ax3 = pl.subplot2grid((2, 2), (1, 0), colspan=2)
-    X_shared.set_value(X_s_train)
-    ppc_train_ = model.predict(likelihood_name='likelihood' )
-    plot_fits_w_estimates(y_train_, ppc_train_,
-                          ax=ax1, title=ax1_title, );
-    X_shared.set_value(X_s_test)
-    ppc_test_ = model.predict()
-    plot_fits_w_estimates(y_test_, ppc_test_, loss_metric='mae',
-                          ax=ax2, title=ax2_title, );
-    plot_fits_w_estimates(y_test.log10_aphy411, ppc_test_411, ax=ax3)
-    ax3.set_title(ax3_title)
-    return f
