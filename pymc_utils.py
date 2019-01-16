@@ -152,7 +152,7 @@ def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False, **kwargs)
             
     with model:
             bias = pm.Laplace('bias', mu=0, b=sd_bias)
-            mu_ = pm.Deterministic('mu', tt.dot(X_, w) + bias)
+            mu_ = tt.dot(X_, w) + bias
             sig = pm.HalfCauchy('sigma', beta=5)
             y = pm.Normal(ylabel, mu=mu_, sd=sig, observed=Y_)
     return model
@@ -289,6 +289,24 @@ def evaluate_model(model,  y_train_, y_test_, ax1_title=None, ax2_title=None, ax
     X_shared.set_value(X_s_test)
     ppc_test_ = model.predict()
     model.plot_model_fits(y_test_, ppc_test_, loss_metric='mae',
+                          ax=ax2, title=ax2_title, );
+    plot_fits_w_estimates(y_test.log10_aphy411, ppc_test_411, ax=ax3)
+    ax3.set_title(ax3_title)
+    return f
+
+def evaluate_model2(model,  y_train_, y_test_, ax1_title=None, ax2_title=None, ax3_title=None,):
+    """Makes a 3-way panel to evaluate model w/ training and testing"""
+    f = pl.figure(figsize=(15, 15))
+    ax1 = pl.subplot2grid((2, 2), (0, 0))
+    ax2 = pl.subplot2grid((2, 2), (0, 1))
+    ax3 = pl.subplot2grid((2, 2), (1, 0), colspan=2)
+    X_shared.set_value(X_s_train)
+    ppc_train_ = model.predict(likelihood_name='likelihood' )
+    plot_fits_w_estimates(y_train_, ppc_train_,
+                          ax=ax1, title=ax1_title, );
+    X_shared.set_value(X_s_test)
+    ppc_test_ = model.predict()
+    plot_fits_w_estimates(y_test_, ppc_test_, loss_metric='mae',
                           ax=ax2, title=ax2_title, );
     plot_fits_w_estimates(y_test.log10_aphy411, ppc_test_411, ax=ax3)
     ax3.set_title(ax3_title)
