@@ -18,8 +18,6 @@ if __name__ == "__main__":
 
     bands = [411, 443, 489, 510, 555, 670]
     model_dict=dict.fromkeys(bands)
-    for band in bands:
-        model_dict[band] = dict.fromkeys(['model', 'trace', 'ppc_train', 'ppc_test'])
 
     # create theano shared variable
     X_shared = shared(X_s_train.values)
@@ -36,12 +34,8 @@ if __name__ == "__main__":
         ppc_train_ = bnn_.predict(likelihood_name='likelihood')
         X_shared.set_value(X_s_test.values)
         ppc_test_ = bnn_.predict(likelihood_name='likelihood')
-
-        model_dict[band]['model'] = bnn_.model
-        model_dict[band]['trace'] = bnn_.trace_
-        model_dict[band]['ppc_train'] = ppc_train_
-        model_dict[band]['ppc_test'] = ppc_test_
-
-        with open('./pickleJar/bnn_model_dict', 'wb') as fb:
+        run_dict = dict(model=bnn_.model, trace=bnn.trace_,
+                        ppc_train=ppc_train, ppc_test=ppc_test)
+        model_dict[band]=run_dict
+        with open('./pickleJar/Results_190118/bnn_model_dict', 'wb') as fb:
             pickle.dump(model_dict, fb, protocol=pickle.HIGHEST_PROTOCOL)
-    
