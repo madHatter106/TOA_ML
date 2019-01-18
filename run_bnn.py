@@ -9,7 +9,7 @@ from pymc_models import bayes_nn_model_ARD_1HL_halfCauchy_hyperpriors
 if __name__ == "__main__":
 
     # load datasets
-    with open('./pickleJar/AphiTrainTestSpliDataSets.pkl', 'rb') as fb:
+    with open('./pickleJar/AphiTrainTestSplitDataSets.pkl', 'rb') as fb:
         datadict = pickle.load(fb)
     X_s_train = datadict['x_train_s']
     y_train = datadict['y_train']
