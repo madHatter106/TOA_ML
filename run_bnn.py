@@ -34,7 +34,7 @@ if __name__ == "__main__":
         ppc_train_ = bnn_.predict(likelihood_name='likelihood')
         X_shared.set_value(X_s_test.values)
         ppc_test_ = bnn_.predict(likelihood_name='likelihood')
-        run_dict = dict(model=bnn_.model, trace=bnn.trace_,
+        run_dict = dict(model=bnn_.model, trace=bnn_.trace_,
                         ppc_train=ppc_train, ppc_test=ppc_test)
         model_dict[band]=run_dict
         with open('./pickleJar/Results_190118/bnn_model_dict', 'wb') as fb:
