@@ -28,7 +28,7 @@ if __name__ == "__main__":
         bnn_ = PyMCModel(bayes_nn_model_ARD_1HL_halfCauchy_hyperpriors,
                             X_shared, y_train['log10_aphy%d' %band], n_hidden=4)
         bnn_.model.name = 'bnn_HL4_%d' %band
-        bnn_.fit(n_samples=2000, cores=1, chains=4, tune=10000,
+        bnn_.fit(n_samples=2000, cores=4, chains=4, tune=10000,
                     nuts_kwargs=dict(target_accept=0.95))
         X_shared.set_value(X_s_train.values)
         ppc_train_ = bnn_.predict(likelihood_name='likelihood')
