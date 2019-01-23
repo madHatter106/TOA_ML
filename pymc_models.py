@@ -168,8 +168,8 @@ def bayes_nn_model_ARD_1HL_halfCauchy_hyperpriors(X, y_obs,
         b_1 = pm.Normal('bias_1', mu=0, sd=hyp_bias_1_sd, shape=(n_hidden),
                        transform=pm.distributions.transforms.Ordered(), testval=testval_bias)
         b_o = pm.Normal('bias_o', mu=0, sd=1)
-        lyr1_act = pm.Deterministic('layer1_act', pm.math.theano.tensor.nnet.elu(tt.dot(X, w_i_1) + b_1) )
-        out_act = pm.Deterministic('out_act', tt.dot(lyr1_act, w_1_o) + b_o)
+        lyr1_act = pm.math.theano.tensor.nnet.elu(tt.dot(X, w_i_1) + b_1)
+        out_act = tt.dot(lyr1_act, w_1_o) + b_o
 
         sd = pm.HalfCauchy('sd', beta=1)
         output = pm.Normal(lklhd_name, mu=out_act, sd=sd, observed=Y)
