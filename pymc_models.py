@@ -233,7 +233,7 @@ def bayes_nn_model_ARD_1HL_halfNormal_hyperpriors(X, y_obs,
     return model
 
 
-def hs_regression(X, y_obs, ylabel='y', tau_0=None, regularized=False, **kwargs):
+def hs_regression(X, y_obs, ylabel='likelihood', tau_0=None, regularized=False, **kwargs):
     """See Piironen & Vehtari, 2017 (DOI: 10.1214/17-EJS1337SI)"""
     X_ = pm.floatX(X)
     Y_ = pm.floatX(y_obs)

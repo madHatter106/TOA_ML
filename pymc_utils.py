@@ -52,9 +52,11 @@ def subset_significant_feature(trace, labels_list, alpha=0.05, vars_=None):
         hpd_lo = int(hpd_lo)
     if str(hpd_hi).split('.')[1] == '0':
         hpd_hi = int(hpd_hi)
-    dsum_subset = dsum[(((dsum[f'hpd_{hpd_lo}']<0)&(dsum[f'hpd_{hpd_hi}']<0))|
-                    ((dsum[f'hpd_{hpd_lo}']>0) & (dsum[f'hpd_{hpd_hi}']>0))
-                   )]
+    dsum_subset = dsum[(((dsum[f'hpd_{hpd_lo}']<0)&
+                         (dsum[f'hpd_{hpd_hi}']<0))|
+                         ((dsum[f'hpd_{hpd_lo}']>0)&
+                         (dsum[f'hpd_{hpd_hi}']>0))
+                         )]
     pattern1 = r'w\s*\[([a-z_\sA-Z0-9]+)\]'
     return list(dsum_subset.index.str.extract(pattern1).dropna().values.flatten())
 
