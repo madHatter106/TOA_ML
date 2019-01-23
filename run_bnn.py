@@ -41,5 +41,5 @@ if __name__ == "__main__":
         run_dict = dict(model=bnn_.model, trace=bnn_.trace_,
                         ppc_train=ppc_train_, ppc_test=ppc_test_)
         model_dict[band]=run_dict
-        with open('./pickleJar/Results_190118/bnn_model_dict', 'wb') as fb:
+        with open('./pickleJar/Results_220118/bnn_model_dict.pkl', 'wb') as fb:
             pickle.dump(model_dict, fb, protocol=pickle.HIGHEST_PROTOCOL)
