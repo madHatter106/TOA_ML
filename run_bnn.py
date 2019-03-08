@@ -1,6 +1,7 @@
 """Runs ARD BNN"""
 
 import pickle
+from datetime import datetime as DT
 from loguru import logger
 from theano import shared
 from pymc_models import PyMCModel
@@ -10,7 +11,7 @@ from pymc_models import bayes_nn_model_ARD_1HL_halfCauchy_hyperpriors
 if __name__ == "__main__":
     # set logger
     logger.add("bnn_{time}.log")
-    
+
     # load datasets
     with open('./pickleJar/AphiTrainTestSplitDataSets.pkl', 'rb') as fb:
         datadict = pickle.load(fb)
@@ -41,5 +42,5 @@ if __name__ == "__main__":
         run_dict = dict(model=bnn_.model, trace=bnn_.trace_,
                         ppc_train=ppc_train_, ppc_test=ppc_test_)
         model_dict[band]=run_dict
-        with open('./pickleJar/Results_220118/bnn_model_dict.pkl', 'wb') as fb:
+        with open('./pickleJar/Results/bnn_model_dict_%s.pkl' %DT.now(), 'wb') as fb:
             pickle.dump(model_dict, fb, protocol=pickle.HIGHEST_PROTOCOL)
