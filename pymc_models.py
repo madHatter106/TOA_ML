@@ -54,6 +54,12 @@ class PyMCModel:
                              **ppc_kws)[likelihood_name]
         return ppc_
 
+    def get_waic(self):
+        return pm.waic(trace=self.trace_, model=self.model)
+
+    def get_loo(self):
+        return pm.loo(trace=self.trace_, model=self.model)
+
     def evaluate_fit(self, show_feats):
         return pm.traceplot(self.trace_, varnames=show_feats)
 
